@@ -470,10 +470,9 @@ async function build() {
     const emb = async p => {
       const key = p.fi + ':' + p.idx;
       if (!embs.has(key)) {
-        let e = null;
-        try { e = await out.embedPage(files[p.fi].doc.getPage(p.idx)); }
-        catch (err) { console.warn('白紙として扱います', p.idx + 1, err); }   // 中身のないページ
-        embs.set(key, e);
+        // 中身（Contents）のないページは埋め込めない（保存のときに止まる）ので、白紙として何も描かない
+        const src = files[p.fi].doc.getPage(p.idx);
+        embs.set(key, src.node.Contents() ? await out.embedPage(src) : null);
       }
       return embs.get(key);
     };

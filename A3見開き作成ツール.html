@@ -32,6 +32,12 @@
   .step .muted { font-weight: 400; }
   .muted { color: var(--muted); font-size: 13px; }
   .hint { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+  .guide { margin-top: 12px; border: 1px solid var(--warn); border-left-width: 5px; border-radius: 8px; padding: 10px 14px; background: var(--a3-soft); }
+  .guide p { margin: 0; }
+  .guide .gtitle { font-weight: 700; color: var(--warn); }
+  .guide .gfiles { font-size: 13px; color: var(--muted); word-break: break-all; }
+  .guide ol { margin: 6px 0; padding-left: 1.6em; }
+  .guide .gnote { font-size: 13px; color: var(--muted); }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px 14px; }
   .grid .wide { grid-column: 1 / -1; }
   .group { grid-column: 1 / -1; font-weight: 600; font-size: 13px; margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
@@ -86,8 +92,9 @@
   <section class="panel">
     <p class="step">1. PDF を入れる</p>
     <div id="drop" class="drop">ここに PDF をドラッグ、または<button id="pick" type="button">PDF を選ぶ</button>
-      <input type="file" id="file" accept="application/pdf,.pdf" multiple hidden>
+      <input type="file" id="file" accept="application/pdf,.pdf,.doc,.docx,.docm,.rtf,.xdw,.xbd" multiple hidden>
     </div>
+    <div id="guide" hidden></div>
     <p class="hint">Word は「ファイル → 名前を付けて保存 → ファイルの種類：PDF」で保存してください。複数入れると、ファイル名の順につなげます。</p>
     <div id="files"></div>
   </section>
@@ -164,9 +171,54 @@ drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); addFiles
 window.addEventListener('dragover', e => e.preventDefault());
 window.addEventListener('drop', e => { e.preventDefault(); if (e.target !== drop && !drop.contains(e.target)) addFiles(e.dataTransfer.files); });
 
+// PDF 以外が入ったときの案内
+const GUIDES = [
+  { re: /\.(docx?|docm|rtf)$/i, title: 'Word のファイルは、PDF にしてから入れてください',
+    steps: ['Word でファイルを開く', 'F12 を押す（または「ファイル」→「名前を付けて保存」→「参照」）',
+            '「ファイルの種類」で「PDF (*.pdf)」を選ぶ', '「保存」を押し、できた PDF をここに入れる'],
+    note: 'Word のままだと、ページの区切りが Word と同じにならないため、PDF で受け取っています。' },
+  { re: /\.(xdw|xbd)$/i, title: 'DocuWorks のファイルは、PDF にしてから入れてください',
+    steps: ['DocuWorks Desk で文書を選ぶ', 'DocuWorks の「PDF に変換」の機能で PDF にする',
+            'できた PDF をここに入れる'],
+    note: 'DocuWorks の形式はブラウザでは読めないため、PDF で受け取っています。仕上がった PDF は Desk にドラッグすれば DocuWorks 文書に戻せます。' },
+];
+function showGuide(others) {
+  const box = $('guide');
+  box.innerHTML = '';
+  const groups = new Map();                         // 案内（なければ null）ごとにファイル名をまとめる
+  for (const f of others) {
+    const g = GUIDES.find(g => g.re.test(f.name)) || null;
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(f.name);
+  }
+  for (const [g, names] of groups) {
+    const div = document.createElement('div');
+    div.className = 'guide';
+    const h = document.createElement('p');
+    h.className = 'gtitle';
+    h.textContent = g ? g.title : 'PDF 以外のファイルは使えません';
+    const n = document.createElement('p');
+    n.className = 'gfiles';
+    n.textContent = '入れたファイル：' + names.join('、');
+    div.append(h, n);
+    if (g) {
+      const ol = document.createElement('ol');
+      for (const s of g.steps) { const li = document.createElement('li'); li.textContent = s; ol.appendChild(li); }
+      const note = document.createElement('p');
+      note.className = 'gnote'; note.textContent = g.note;
+      div.append(ol, note);
+    }
+    box.appendChild(div);
+  }
+  box.hidden = !others.length;
+}
+
 async function addFiles(list) {
-  const arr = [...list].filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
-  if (!arr.length) { setStatus('PDF ファイルを選んでください（Word は PDF で保存してから入れます）', true); return; }
+  const all = [...list];
+  const isPdf = f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf';
+  const arr = all.filter(isPdf);
+  showGuide(all.filter(f => !isPdf(f)));
+  if (!arr.length) { setStatus(''); return; }
   arr.sort((a, b) => a.name.localeCompare(b.name, 'ja', { numeric: true }));
   const first = files.length === 0;
   for (const f of arr) {

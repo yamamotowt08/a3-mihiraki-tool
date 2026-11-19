@@ -11,16 +11,30 @@ DocuWorks でしていた次の手作業を、まとめて自動で行います�
 
 ## 使い方
 
-Google Chrome か Microsoft Edge で **https://yamamotowt08.github.io/a3-mihiraki-tool/** を開きます。
-HTML ファイル（`A3見開き作成ツール.html`）を保存して開いても使えます。
+次の 2 つの形で使えます。どちらもインストールは要りません。
 
-1. Word を「ファイル → 名前を付けて保存 → ファイルの種類：PDF」で保存します
-2. その PDF をツールにドラッグします（複数入れると、ファイル名の順につなげます）
-3. 仕上がりを確認して「PDF で保存」を押します
-4. 保存した PDF を DocuWorks Desk にドラッグすると、DocuWorks 文書になります
+- **アプリ版（EXE）**：`A3見開き作成ツール.exe` 1 つで動きます。**Word（.docx・.doc）と DocuWorks（.xdw）のファイルをそのまま入れられます**（パソコンの Word・DocuWorks を裏で動かして PDF にしてから読み込みます）。
+  [リリース](https://github.com/yamamotowt08/a3-mihiraki-tool/releases/latest) の `A3MihirakiTool.zip` を展開して使います。
+- **HTML 版**：Google Chrome か Microsoft Edge で **https://yamamotowt08.github.io/a3-mihiraki-tool/** を開きます。こちらは PDF だけを入れられます（Word は「名前を付けて保存 → PDF」で PDF にしてから）。
 
-PDF はパソコンの中だけで処理し、どこにも送りません。
+1. ファイルをツールにドラッグします（複数入れると、ファイル名の順につなげます）
+2. 仕上がりを確認して「PDF で保存」を押し、保存先を選びます
+3. 保存した PDF を DocuWorks Desk にドラッグすると、DocuWorks 文書になります
+
+ファイルはパソコンの中だけで処理し、どこにも送りません。
+
+### アプリ版で Word・DocuWorks を入れるとき
+
+- Word：パソコンの Word で開いて PDF にします。ページの区切りは Word と同じになります。
+- DocuWorks：DocuWorks の部品（xdwapi.dll）でページを PDF に書き出します。**ページは画像（400dpi）になります**（DocuWorks の部品でできる書き出し方がこれだけのため）。注釈も入ります。
+- アプリ版を動かすには、Microsoft Edge WebView2 ランタイム（Windows 10 / 11 にはふつう入っています）と .NET Framework 4.8 が要ります。
 
 ## 直すとき
 
-`A3見開き作成ツール.html` を直したら、同じ内容を `index.html`（公開ページ用）にもコピーします。
+元は `A3見開き作成ツール.html`（部品は cdnjs から読み込む）です。直したら次のコマンドで、アプリ版（`dist/`）と公開ページ用の `index.html` を作り直します（.NET SDK が必要）。
+
+```
+python3 build_app.py
+```
+
+アプリ版の中のツールは、`vendor/` の部品（pdf-lib 1.17.1・MIT、PDF.js 3.11.174・Apache-2.0）を HTML の中に入れたものです。

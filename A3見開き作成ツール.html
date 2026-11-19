@@ -6,6 +6,7 @@
 <title>A3見開き作成ツール</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script id="pdfWorkerSrc" type="text/plain" data-src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
 <style>
   :root {
     --bg: #f6f7f9; --panel: #fff; --text: #1d2330; --muted: #6a7282;
@@ -87,15 +88,15 @@
 <body>
 <main>
   <div class="top"><h1>A3見開き作成ツール</h1><span id="status"></span></div>
-  <p class="lead">Word から保存した PDF を入れると、白紙の差し込み・A3 横の 2 アップ・A3 ページの差し替え・ページ番号・1 枚目右上の資料名を、まとめて自動で行います。</p>
+  <p class="lead" id="lead">Word から保存した PDF を入れると、白紙の差し込み・A3 横の 2 アップ・A3 ページの差し替え・ページ番号・1 枚目右上の資料名を、まとめて自動で行います。</p>
 
   <section class="panel">
     <p class="step">1. PDF を入れる</p>
     <div id="drop" class="drop">ここに PDF をドラッグ、または<button id="pick" type="button">PDF を選ぶ</button>
-      <input type="file" id="file" accept="application/pdf,.pdf,.doc,.docx,.docm,.rtf,.xdw,.xbd" multiple hidden>
+      <input type="file" id="file" accept=".pdf,.doc,.docx,.docm,.rtf,.xdw,.xbd" multiple hidden>
     </div>
     <div id="guide" hidden></div>
-    <p class="hint">Word は「ファイル → 名前を付けて保存 → ファイルの種類：PDF」で保存してください。複数入れると、ファイル名の順につなげます。</p>
+    <p class="hint" id="inHint">Word は「ファイル → 名前を付けて保存 → ファイルの種類：PDF」で保存してください。複数入れると、ファイル名の順につなげます。</p>
     <div id="files"></div>
   </section>
 
@@ -139,13 +140,16 @@
       <button id="save" class="primary" type="button" disabled>PDF で保存</button>
     </div>
     <div id="sheets" class="sheets"><div class="empty">PDF を入れると、ここに A3 の仕上がりが並びます。</div></div>
-    <p class="hint">保存した PDF は、DocuWorks Desk にドラッグすればそのまま DocuWorks 文書にできます。</p>
+    <p class="hint" id="outHint">保存した PDF は、DocuWorks Desk にドラッグすればそのまま DocuWorks 文書にできます。</p>
   </section>
 </main>
 
 <script>
 const { PDFDocument, degrees } = PDFLib;
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+// アプリ版では作業用の部品（worker）がページの中に入っているので、Blob にして動かす
+const ws = document.getElementById('pdfWorkerSrc');
+pdfjsLib.GlobalWorkerOptions.workerSrc = ws.textContent.trim()
+  ? URL.createObjectURL(new Blob([ws.textContent], { type: 'text/javascript' })) : ws.dataset.src;
 
 const MM = 72 / 25.4;
 const A3 = [420 * MM, 297 * MM];            // 横
@@ -213,11 +217,53 @@ function showGuide(others) {
   box.hidden = !others.length;
 }
 
+/* ---------- アプリ版：Word・DocuWorks をパソコンの Word・DocuWorks で PDF にする ---------- */
+const APP = window.chrome && window.chrome.webview;
+const CONVERTIBLE = /\.(docx?|docm|rtf|xdw|xbd)$/i;
+const waiting = new Map();   // 頼んだ変換 id → { resolve, reject }
+if (APP) {
+  $('lead').textContent = 'Word・DocuWorks・PDF のファイルを入れると、白紙の差し込み・A3 横の 2 アップ・A3 ページの差し替え・ページ番号・1 枚目右上の資料名を、まとめて自動で行います。';
+  $('inHint').textContent = 'Word（.docx・.doc）はパソコンの Word で、DocuWorks（.xdw）はパソコンの DocuWorks で、PDF にしてから読み込みます。複数入れると、ファイル名の順につなげます。';
+  $('outHint').textContent = '保存した PDF は、DocuWorks Desk にドラッグすれば DocuWorks 文書にできます。';
+  APP.addEventListener('message', e => {
+    const m = e.data;
+    if (!m || m.type !== 'converted' || !waiting.has(m.id)) return;
+    const w = waiting.get(m.id);
+    waiting.delete(m.id);
+    if (m.error) w.reject(new Error(m.error));
+    else w.resolve(m.url);
+  });
+}
+
+async function convertInApp(f) {
+  const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const url = await new Promise((resolve, reject) => {
+    waiting.set(id, { resolve, reject });
+    APP.postMessageWithAdditionalObjects(JSON.stringify({ type: 'convert', id }), [f]);
+  });
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('変換した PDF を読めませんでした');
+  return new File([await res.arrayBuffer()], f.name.replace(/\.[^.]+$/, '') + '.pdf', { type: 'application/pdf' });
+}
+
 async function addFiles(list) {
   const all = [...list];
   const isPdf = f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf';
   const arr = all.filter(isPdf);
-  showGuide(all.filter(f => !isPdf(f)));
+  let others = all.filter(f => !isPdf(f));
+  if (APP) {
+    for (const f of others.filter(f => CONVERTIBLE.test(f.name))) {
+      setStatus(`${f.name} を PDF にしています…（Word・DocuWorks を裏で動かしているので、少し時間がかかります）`);
+      try { arr.push(await convertInApp(f)); }
+      catch (err) {
+        console.error(err);
+        setStatus(`${f.name} を PDF にできませんでした（${err.message}）`, true);
+        return;
+      }
+    }
+    others = others.filter(f => !CONVERTIBLE.test(f.name));
+  }
+  showGuide(others);
   if (!arr.length) { setStatus(''); return; }
   arr.sort((a, b) => a.name.localeCompare(b.name, 'ja', { numeric: true }));
   const first = files.length === 0;
@@ -564,9 +610,31 @@ $('save').onclick = async () => {
   if (!bytes) return;
   const base = ($('label').value.trim() || (files[0] && files[0].name.replace(/\.pdf$/i, '')) || '資料')
     .replace(/[\\/:*?"<>|]/g, '_');
+  const name = `${base}_A3見開き.pdf`;
+  // 保存先を選べるときは、Windows の「名前を付けて保存」の画面を出す
+  if (window.showSaveFilePicker) {
+    let handle;
+    try {
+      handle = await window.showSaveFilePicker({ suggestedName: name,
+        types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }] });
+    } catch (err) {
+      if (err.name === 'AbortError') return;          // 「キャンセル」
+      handle = null;                                  // 使えないときは、ふつうのダウンロードにする
+    }
+    if (handle) {
+      try {
+        const w = await handle.createWritable();
+        await w.write(bytes); await w.close();
+        setStatus(`${handle.name} を保存しました`);
+      } catch (err) {
+        setStatus(`保存できませんでした（${err.message}）。同じ名前のファイルを開いていたら閉じてください`, true);
+      }
+      return;
+    }
+  }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-  a.download = `${base}_A3見開き.pdf`;
+  a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 10000);
 };

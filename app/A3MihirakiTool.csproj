@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 会社のパソコンに最初から入っている .NET Framework 4.8 で動く、ツールの起動アプリ。
+       ツール本体と Edge の部品（WebView2）を使うためのファイルを EXE の中に入れ、EXE 1 つで動くようにする。
+       DocuWorks の部品（xdwapi.dll）は 32 ビットなので、アプリも 32 ビット（x86）で動かす。 -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>A3MihirakiTool</AssemblyName>
+    <RootNamespace>A3MihirakiTool</RootNamespace>
+    <PlatformTarget>x86</PlatformTarget>
+    <Product>A3見開き作成ツール</Product>
+    <AssemblyTitle>A3見開き作成ツール</AssemblyTitle>
+    <Version>1.0.0</Version>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <WebView2Version>1.0.4314.35</WebView2Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="$(WebView2Version)" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <!-- Word を動かすところ（dynamic）で使う -->
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+
+  <!-- EXE の中に入れるファイル -->
+  <PropertyGroup>
+    <WebView2Pkg>$(NuGetPackageRoot)microsoft.web.webview2/$(WebView2Version)/</WebView2Pkg>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="tool.html" LogicalName="tool.html" />
+    <EmbeddedResource Include="$(WebView2Pkg)lib/net462/Microsoft.Web.WebView2.Core.dll" LogicalName="lib.Microsoft.Web.WebView2.Core.dll" />
+    <EmbeddedResource Include="$(WebView2Pkg)lib/net462/Microsoft.Web.WebView2.WinForms.dll" LogicalName="lib.Microsoft.Web.WebView2.WinForms.dll" />
+    <EmbeddedResource Include="$(WebView2Pkg)runtimes/win-x86/native/WebView2Loader.dll" LogicalName="native.x86.WebView2Loader.dll" />
+  </ItemGroup>
+
+</Project>

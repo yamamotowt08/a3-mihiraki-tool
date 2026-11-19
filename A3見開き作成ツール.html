@@ -24,10 +24,31 @@
   body { margin: 0; background: var(--bg); color: var(--text);
     font: 15px/1.6 system-ui, "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", sans-serif; }
   main { max-width: 1240px; margin: 0 auto; padding: 20px 16px 80px; }
-  h1 { font-size: 22px; margin: 0; }
-  .top { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; margin-bottom: 6px; }
-  #status { font-size: 13px; color: var(--muted); }
-  .lead { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
+  h1 { font-size: 26px; margin: 0; }
+  /* 上の説明 */
+  .hero { margin-bottom: 18px; }
+  .hero-sub { margin: 4px 0 14px; font-size: 17px; }
+  .flow { list-style: none; margin: 0 0 12px; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .flow li { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 12px 14px 12px 56px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-height: 64px; justify-content: center; }
+  .flow .num { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; border-radius: 50%;
+    background: var(--accent); color: var(--accent-text); font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .flow b { font-size: 16px; }
+  .flow small { color: var(--muted); font-size: 13px; line-height: 1.4; }
+  .flow li:not(:last-child)::after { content: ""; position: absolute; right: -9px; top: 50%; width: 8px; height: 8px; z-index: 1;
+    border-top: 2px solid var(--muted); border-right: 2px solid var(--muted); transform: translate(0, -50%) rotate(45deg); }
+  .auto { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; }
+  .auto li { padding-left: 22px; position: relative; }
+  .auto li::before { content: ""; position: absolute; left: 4px; top: .45em; width: 6px; height: 11px;
+    border-right: 2.5px solid var(--ok); border-bottom: 2.5px solid var(--ok); transform: rotate(45deg); }
+  body.app .only-web, body:not(.app) .only-app { display: none !important; }
+  /* 状態の表示（変換中・エラーなど） */
+  #status { margin-top: 10px; font-size: 15px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 10px; }
+  #status:empty { display: none; }
+  #status.err { color: var(--err); }
+  #status.busy::before { content: ""; flex: none; width: 18px; height: 18px; border-radius: 50%;
+    border: 3px solid var(--accent-soft); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
   .step { font-weight: 700; margin: 0 0 10px; }
   .step .muted { font-weight: 400; }
@@ -53,9 +74,26 @@
   button:hover { border-color: var(--accent); }
   button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
   button:disabled { opacity: .5; cursor: default; }
-  .drop { border: 2px dashed var(--line); border-radius: 10px; padding: 26px 16px; text-align: center; color: var(--muted); }
-  .drop.over { border-color: var(--accent); background: var(--accent-soft); }
-  .drop button { margin-left: 6px; }
+  /* ファイルを入れる場所 */
+  .drop { border: 3px dashed var(--accent); border-radius: 14px; padding: 24px 16px 22px; text-align: center;
+    background: var(--accent-soft); transition: background .15s, transform .15s; }
+  .drop.over { background: var(--panel); transform: scale(1.01); }
+  .drop-icon { width: 46px; height: 46px; color: var(--accent); }
+  .drop-main { margin: 4px 0 14px; font-size: 21px; font-weight: 700; }
+  .types { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+  .type { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 14px; min-width: 210px; text-align: left; }
+  .chip { flex: none; width: 44px; height: 44px; border-radius: 8px; color: #fff; font-weight: 800; font-size: 17px;
+    display: flex; align-items: center; justify-content: center; letter-spacing: -.5px; }
+  .chip.word { background: #2b5fb4; } .chip.docu { background: #c2410c; } .chip.pdf { background: #b91c1c; font-size: 14px; }
+  .type .tname { display: block; font-weight: 700; font-size: 16px; line-height: 1.3; }
+  .type .text { display: block; font-size: 12px; color: var(--muted); }
+  .tnote { display: inline-block; margin-top: 3px; font-size: 13px; font-weight: 700; color: var(--ok); }
+  .tnote.off { color: var(--muted); font-weight: 600; }
+  body:not(.app) .type.conv .chip { opacity: .45; }
+  .drop-or { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+  button.big { font-size: 16px; padding: 10px 26px; }
+  .drop-note { margin: 12px auto 0; max-width: 640px; font-size: 13px; color: var(--muted); }
   #files { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 14px; }
   #files .f { background: var(--accent-soft); border-radius: 6px; padding: 3px 10px; }
   .pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
@@ -79,7 +117,12 @@
   .sheet canvas { max-width: 100%; max-height: 100%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
   .empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
   .err { color: var(--err); }
+  @media (max-width: 760px) {
+    .flow { grid-template-columns: 1fr; }
+    .flow li:not(:last-child)::after { right: auto; left: 25px; top: auto; bottom: -9px; transform: rotate(135deg); }
+  }
   @media (max-width: 600px) {
+    .type { min-width: 0; width: 100%; }
     .pages { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
     .sheets { grid-template-columns: 1fr; }
   }
@@ -87,16 +130,45 @@
 </head>
 <body>
 <main>
-  <div class="top"><h1>A3見開き作成ツール</h1><span id="status"></span></div>
-  <p class="lead" id="lead">Word から保存した PDF を入れると、白紙の差し込み・A3 横の 2 アップ・A3 ページの差し替え・ページ番号・1 枚目右上の資料名を、まとめて自動で行います。</p>
+  <header class="hero">
+    <h1>A3見開き作成ツール</h1>
+    <p class="hero-sub">報告書の資料を、<b>A3 横の見開き</b>に自動でまとめます。</p>
+    <ol class="flow">
+      <li><span class="num">1</span><b>ファイルを入れる</b>
+        <small class="only-app">Word・DocuWorks・PDF をドラッグするだけ</small>
+        <small class="only-web">PDF をドラッグするだけ</small></li>
+      <li><span class="num">2</span><b>仕上がりを見る</b><small>A3 の並びを画面で確かめる</small></li>
+      <li><span class="num">3</span><b>PDF で保存</b><small>DocuWorks Desk にドラッグすれば DocuWorks 文書に</small></li>
+    </ol>
+    <ul class="auto">
+      <li>A4 は 2 ページずつ A3 横に並べます（白紙を入れる必要はありません）</li>
+      <li>A3 のページは縮小しないで、そのまま 1 枚にします</li>
+      <li>ページ番号（2-1、2-2…）と、1 枚目右上の資料名も入れます</li>
+    </ul>
+  </header>
 
   <section class="panel">
-    <p class="step">1. PDF を入れる</p>
-    <div id="drop" class="drop">ここに PDF をドラッグ、または<button id="pick" type="button">PDF を選ぶ</button>
+    <p class="step">1. ファイルを入れる</p>
+    <div id="drop" class="drop">
+      <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      <p class="drop-main">ここにファイルをドラッグ</p>
+      <div class="types">
+        <div class="type conv"><span class="chip word">W</span><span><span class="tname">Word</span><span class="text">.docx・.doc</span>
+          <span class="tnote only-app">→ 自動で PDF に変換</span><span class="tnote off only-web">アプリ版で使えます</span></span></div>
+        <div class="type conv"><span class="chip docu">DW</span><span><span class="tname">DocuWorks</span><span class="text">.xdw</span>
+          <span class="tnote only-app">→ 自動で PDF に変換</span><span class="tnote off only-web">アプリ版で使えます</span></span></div>
+        <div class="type"><span class="chip pdf">PDF</span><span><span class="tname">PDF</span><span class="text">.pdf</span>
+          <span class="tnote">→ そのまま読み込み</span></span></div>
+      </div>
+      <p class="drop-or">または</p>
+      <button id="pick" class="primary big" type="button">ファイルを選ぶ</button>
       <input type="file" id="file" accept=".pdf,.doc,.docx,.docm,.rtf,.xdw,.xbd" multiple hidden>
+      <p class="drop-note only-app">何個でもまとめて入れられます（ファイル名の順につなげます）。Word・DocuWorks の変換には、1 つにつき少し時間がかかります。</p>
+      <p class="drop-note only-web">何個でもまとめて入れられます（ファイル名の順につなげます）。この画面（ブラウザ版）では PDF だけ使えます。Word・DocuWorks をそのまま入れるには、アプリ版（A3見開き作成ツール.exe）を使ってください。</p>
     </div>
+    <div id="status" role="status"></div>
     <div id="guide" hidden></div>
-    <p class="hint" id="inHint">Word は「ファイル → 名前を付けて保存 → ファイルの種類：PDF」で保存してください。複数入れると、ファイル名の順につなげます。</p>
     <div id="files"></div>
   </section>
 
@@ -221,10 +293,8 @@ function showGuide(others) {
 const APP = window.chrome && window.chrome.webview;
 const CONVERTIBLE = /\.(docx?|docm|rtf|xdw|xbd)$/i;
 const waiting = new Map();   // 頼んだ変換 id → { resolve, reject }
+document.body.classList.toggle('app', !!APP);   // アプリ版だけの説明（.only-app）を出す
 if (APP) {
-  $('lead').textContent = 'Word・DocuWorks・PDF のファイルを入れると、白紙の差し込み・A3 横の 2 アップ・A3 ページの差し替え・ページ番号・1 枚目右上の資料名を、まとめて自動で行います。';
-  $('inHint').textContent = 'Word（.docx・.doc）はパソコンの Word で、DocuWorks（.xdw）はパソコンの DocuWorks で、PDF にしてから読み込みます。複数入れると、ファイル名の順につなげます。';
-  $('outHint').textContent = '保存した PDF は、DocuWorks Desk にドラッグすれば DocuWorks 文書にできます。';
   APP.addEventListener('message', e => {
     const m = e.data;
     if (!m || m.type !== 'converted' || !waiting.has(m.id)) return;
@@ -253,8 +323,9 @@ async function addFiles(list) {
   let others = all.filter(f => !isPdf(f));
   if (APP) {
     for (const f of others.filter(f => CONVERTIBLE.test(f.name))) {
-      setStatus(`${f.name} を PDF にしています…（Word・DocuWorks を裏で動かしているので、少し時間がかかります）`);
-      try { arr.push(await convertInApp(f)); }
+      const kind = /\.xd[wb]$/i.test(f.name) ? 'DocuWorks' : 'Word';
+      setStatus(`「${f.name}」を PDF に変換しています…（${kind} を裏で動かしているので、少し待ってください）`, false, true);
+      try { const pdf = await convertInApp(f); pdf.from = kind; arr.push(pdf); }
       catch (err) {
         console.error(err);
         setStatus(`${f.name} を PDF にできませんでした（${err.message}）`, true);
@@ -268,13 +339,13 @@ async function addFiles(list) {
   arr.sort((a, b) => a.name.localeCompare(b.name, 'ja', { numeric: true }));
   const first = files.length === 0;
   for (const f of arr) {
-    setStatus(`${f.name} を読み込み中…`);
+    setStatus(`${f.name} を読み込み中…`, false, true);
     try {
       const bytes = new Uint8Array(await f.arrayBuffer());
       const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
       const js = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
       const fi = files.length;
-      files.push({ name: f.name, doc, js });
+      files.push({ name: f.name, from: f.from, doc, js });
       doc.getPages().forEach((pg, idx) => {
         const { width: w0, height: h0 } = pg.getSize();
         const rot = (((pg.getRotation().angle || 0) % 360) + 360) % 360;
@@ -310,7 +381,7 @@ function renderFiles() {
   files.forEach(f => {
     const s = document.createElement('span');
     s.className = 'f';
-    s.textContent = `${f.name}（${f.doc.getPageCount()} ページ）`;
+    s.textContent = `${f.name}（${f.from ? f.from + ' から変換・' : ''}${f.doc.getPageCount()} ページ）`;
     box.appendChild(s);
   });
   if (files.length) {
@@ -374,7 +445,7 @@ async function renderPageList() {
   // サムネイルはあとから順に描く
   for (const [i, p] of pages.entries()) {
     if (!p.el.isConnected) return;
-    setStatus(`ページを表示中… ${i + 1} / ${pages.length}`);
+    setStatus(`ページを表示中… ${i + 1} / ${pages.length}`, false, true);
     try {
       const pg = await files[p.fi].js.getPage(p.idx + 1);
       const vp0 = pg.getViewport({ scale: 1 });
@@ -509,7 +580,7 @@ async function build() {
     $('outInfo').textContent = ''; $('save').disabled = true;
     return null;
   }
-  setStatus('A3 に割り付け中…');
+  setStatus('A3 に割り付け中…', false, true);
   try {
     const out = await PDFDocument.create();
     const embs = new Map();
@@ -639,10 +710,11 @@ $('save').onclick = async () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 10000);
 };
 
-function setStatus(t, isErr) {
+function setStatus(t, isErr, busy) {
   const s = $('status');
   s.textContent = t;
   s.classList.toggle('err', !!isErr);
+  s.classList.toggle('busy', !!busy);   // くるくる回る印（変換中など）
 }
 </script>
 </body>

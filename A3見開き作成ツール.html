@@ -113,7 +113,15 @@
   .pg.large .badge { color: var(--a3); }
   .pg .where { color: var(--accent); font-size: 12px; }
   .pg select { font-size: 13px; padding: 4px 6px; margin-top: 0; }
-  .pg label.check { font-size: 12px; padding: 0; gap: 5px; color: var(--muted); }
+  .pg label.check { font-size: 12px; padding: 0; gap: 5px; color: var(--muted); align-self: flex-start; }
+  .pg.blank { border-style: dashed; }
+  .blankpg { height: 112px; aspect-ratio: 210 / 297; max-width: 100%; background: #fff; color: #9aa1ad;
+    box-shadow: 0 1px 3px rgba(0,0,0,.25); display: flex; align-items: center; justify-content: center; font-size: 13px; }
+  .blankpg.a3 { height: auto; width: 130px; aspect-ratio: 420 / 297; }
+  .pg button { font-size: 12px; padding: 2px 8px; }
+  .pg .rm { align-self: flex-start; }
+  .pg .ins { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 2px; padding-top: 6px;
+    border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
   .fileSep { grid-column: 1 / -1; font-size: 13px; font-weight: 600; color: var(--muted); padding-top: 4px; }
   .outhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
   .outhead .step { margin: 0; }
@@ -147,7 +155,7 @@
       <li><span class="num">3</span><b>PDF で保存</b><small>DocuWorks Desk にドラッグすれば DocuWorks 文書に</small></li>
     </ol>
     <ul class="auto">
-      <li>A4 は 2 ページずつ A3 横に並べます（白紙を入れる必要はありません）</li>
+      <li>A4 は 2 ページずつ A3 横に並べます（A3 との切れ目の白紙は自動。好きな所に白紙を差し込むこともできます）</li>
       <li>A3 のページは縮小しないで、そのまま 1 枚にします</li>
       <li>ページ番号（2-1、2-2…）と、右上の資料名も入れます（入れるページは選べます）</li>
     </ul>
@@ -214,7 +222,7 @@
   </section>
 
   <section class="panel">
-    <p class="step">3. ページの確認 <span class="muted">— A3 のページは色付き。ページごとに扱いを変えられます</span></p>
+    <p class="step">3. ページの確認 <span class="muted">— A3 のページは色付き。ページごとに扱いを変えたり、「白紙を 前に・後ろに」で白紙を差し込んだりできます</span></p>
     <div id="pages" class="pages"><div class="empty">PDF を入れると、ここにページが並びます。</div></div>
   </section>
 
@@ -400,7 +408,7 @@ function renderFiles() {
     const b = document.createElement('button');
     b.type = 'button'; b.textContent = 'やり直す（全部外す）';
     b.onclick = () => {
-      files = []; pages = []; lastBytes = null; buildSeq++;
+      files = []; pages = []; lastBytes = null; buildSeq++; listSeq++;
       renderFiles();
       $('pages').innerHTML = '<div class="empty">PDF を入れると、ここにページが並びます。</div>';
       $('sheets').innerHTML = '<div class="empty">PDF を入れると、ここに A3 の仕上がりが並びます。</div>';
@@ -419,11 +427,13 @@ function sizeName(p) {
   return `${Math.round(w)}×${Math.round(h)}mm`;
 }
 
+let listSeq = 0;
 async function renderPageList() {
+  const seq = ++listSeq;
   const box = $('pages');
   box.innerHTML = '';
-  let lastFi = -1;
-  for (const [i, p] of pages.entries()) {
+  let lastFi = -1, no = 0;
+  for (const p of pages) {
     if (files.length > 1 && p.fi !== lastFi) {
       const sep = document.createElement('div');
       sep.className = 'fileSep'; sep.textContent = files[p.fi].name;
@@ -431,32 +441,50 @@ async function renderPageList() {
     }
     lastFi = p.fi;
     const el = document.createElement('div');
-    el.className = 'pg' + (p.large ? ' large' : '');
+    el.className = 'pg' + (p.large ? ' large' : '') + (p.blank ? ' blank' : '') + (p.skip ? ' skip' : '');
     el.innerHTML = `
-      <div class="head"><span>${i + 1}</span><span class="badge">${sizeName(p)}</span></div>
-      <div class="thumb"></div>
+      <div class="head"><span>${p.blank ? '白紙' : ++no}</span><span class="badge">${sizeName(p)}</span></div>
+      <div class="thumb">${p.blank ? `<div class="blankpg${p.large ? ' a3' : ''}">白紙</div>` : ''}</div>
       <div class="where"></div>
-      ${p.large ? `<select class="mode">
+      ${p.blank ? `<select class="bsize">
+          <option value="a4">A4 の白紙（半分）</option>
+          <option value="a3">A3 の白紙（1 枚）</option></select>`
+        : p.large ? `<select class="mode">
           <option value="full">原寸で 1 枚に</option>
           <option value="half">縮小して 2 アップ</option></select>` : ''}
       <label class="check"><input type="checkbox" class="ns"> 新しい用紙の左から</label>
-      <label class="check"><input type="checkbox" class="sk"> 使わない</label>`;
-    if (p.large) {
-      const sel = el.querySelector('.mode');
-      sel.value = p.mode;
-      sel.onchange = () => { p.mode = sel.value; scheduleBuild(); };
-    }
-    const ns = el.querySelector('.ns'), sk = el.querySelector('.sk');
-    ns.checked = p.newSheet; sk.checked = p.skip;
+      ${p.blank ? '<button type="button" class="rm">この白紙を外す</button>'
+        : '<label class="check"><input type="checkbox" class="sk"> 使わない</label>'}
+      <div class="ins">白紙を<button type="button" class="ib">前に</button><button type="button" class="ia">後ろに</button></div>`;
+    const ns = el.querySelector('.ns');
+    ns.checked = p.newSheet;
     ns.onchange = () => { p.newSheet = ns.checked; scheduleBuild(); };
-    sk.onchange = () => { p.skip = sk.checked; el.classList.toggle('skip', p.skip); scheduleBuild(); };
+    if (p.blank) {
+      const bs = el.querySelector('.bsize');
+      bs.value = p.size;
+      bs.onchange = () => { setBlankSize(p, bs.value); renderPageList(); scheduleBuild(); };
+      el.querySelector('.rm').onclick = () => removeBlank(p);
+    } else {
+      if (p.large) {
+        const sel = el.querySelector('.mode');
+        sel.value = p.mode;
+        sel.onchange = () => { p.mode = sel.value; scheduleBuild(); };
+      }
+      const sk = el.querySelector('.sk');
+      sk.checked = p.skip;
+      sk.onchange = () => { p.skip = sk.checked; el.classList.toggle('skip', p.skip); scheduleBuild(); };
+      if (p.canvas) el.querySelector('.thumb').appendChild(p.canvas);   // 描いたことのあるサムネイルは使い回す
+    }
+    el.querySelector('.ib').onclick = () => insertBlank(p, false);
+    el.querySelector('.ia').onclick = () => insertBlank(p, true);
     p.el = el;
     box.appendChild(el);
   }
   updateWhere();
-  // サムネイルはあとから順に描く
+  // サムネイルはあとから順に描く（途中で並べ直したら、古いほうはやめる）
   for (const [i, p] of pages.entries()) {
-    if (!p.el.isConnected) return;
+    if (seq !== listSeq) return;
+    if (p.blank || p.canvas) continue;
     setStatus(`ページを表示中… ${i + 1} / ${pages.length}`, false, true);
     try {
       const pg = await files[p.fi].js.getPage(p.idx + 1);
@@ -464,10 +492,35 @@ async function renderPageList() {
       const scale = Math.min(130 / vp0.width, 112 / vp0.height) * (window.devicePixelRatio || 1) * 1.2;
       const c = await renderToCanvas(pg, scale);
       c.style.width = (c.width / scale * Math.min(130 / vp0.width, 112 / vp0.height)) + 'px';
+      p.canvas = c;
       p.el.querySelector('.thumb').appendChild(c);
     } catch (err) { console.error(err); }
   }
-  setStatus(statusText());
+  if (seq === listSeq) setStatus(statusText());
+}
+
+/* ---------- 白紙の差し込み（DocuWorks の「白紙ページの挿入」と同じ） ---------- */
+// 前に入れるときは、そのページの「新しい用紙の左から」を白紙が引き継ぐ（白紙が用紙の左に来る）
+function insertBlank(ref, after) {
+  const b = { fi: ref.fi, blank: true, rot: 0, mode: 'full', newSheet: false, skip: false };
+  setBlankSize(b, 'a4');
+  if (!after && ref.newSheet) { b.newSheet = true; ref.newSheet = false; }
+  pages.splice(pages.indexOf(ref) + (after ? 1 : 0), 0, b);
+  renderPageList();
+  scheduleBuild();
+}
+
+function removeBlank(b) {
+  const at = pages.indexOf(b);
+  pages.splice(at, 1);
+  if (b.newSheet && pages[at]) pages[at].newSheet = true;   // 引き継いだ印を、次のページに戻す
+  renderPageList();
+  scheduleBuild();
+}
+
+function setBlankSize(b, size) {
+  const [w, h] = size === 'a3' ? A3 : [210 * MM, 297 * MM];
+  Object.assign(b, { size, w0: w, h0: h, ew: w, eh: h, large: size === 'a3' });
 }
 
 async function renderToCanvas(pg, scale) {
@@ -480,6 +533,7 @@ async function renderToCanvas(pg, scale) {
 
 /* ---------- 割り付け ---------- */
 // A4 は 2 ページずつ（左・右）、A3 は 1 枚に原寸。まとまりの切れ目では右を空ける（＝白紙の差し込み）
+// 手で入れた A4 の白紙は、A4・A3 のどちらとも並べられる
 function layout() {
   const sheets = [];
   let open = null;
@@ -490,9 +544,10 @@ function layout() {
       sheets.push({ type: 'full', page: p });
       continue;
     }
-    const kind = p.large ? 'A3' : 'A4';
-    if (open && open.kind === kind && !p.newSheet) { open.right = p; open = null; }
-    else { open = { type: 'two', kind, left: p, right: null }; sheets.push(open); }
+    const kind = p.blank ? null : p.large ? 'A3' : 'A4';
+    if (open && !p.newSheet && (open.kind === kind || kind === null || open.kind === null)) {
+      open.right = p; open = null;
+    } else { open = { type: 'two', kind, left: p, right: null }; sheets.push(open); }
   }
   return sheets;
 }
@@ -501,7 +556,7 @@ function updateWhere() {
   const sheets = layout();
   for (const p of pages) p.where = p.skip ? '使わない' : '';
   sheets.forEach((s, i) => {
-    if (s.type === 'full') s.page.where = `${i + 1} 枚目（A3 原寸）`;
+    if (s.type === 'full') s.page.where = `${i + 1} 枚目（${s.page.blank ? 'A3 の白紙' : 'A3 原寸'}）`;
     else {
       s.left.where = `${i + 1} 枚目・左`;
       if (s.right) s.right.where = `${i + 1} 枚目・右`;
@@ -560,10 +615,11 @@ function showLabelWhere(total) {
 }
 
 function statusText() {
-  const used = pages.filter(p => !p.skip).length;
+  const used = pages.filter(p => !p.skip && !p.blank).length;
+  const blanks = pages.filter(p => p.blank).length;
   const n = layout().length;
-  const a3 = pages.filter(p => p.large && !p.skip).length;
-  return used ? `${used} ページ（うち A3 ${a3} ページ）→ A3 ${n} 枚` : '';
+  const a3 = pages.filter(p => p.large && !p.skip && !p.blank).length;
+  return used || blanks ? `${used} ページ（うち A3 ${a3} ページ）${blanks ? `＋白紙 ${blanks} ページ ` : ''}→ A3 ${n} 枚` : '';
 }
 
 /* ---------- PDF を作る ---------- */
@@ -583,7 +639,7 @@ document.querySelectorAll('.pickrow .quick').forEach(b => b.onclick = () => {
   scheduleBuild();
 });
 $('a3All').onchange = () => {
-  for (const p of pages) if (p.large) {
+  for (const p of pages) if (p.large && !p.blank) {
     p.mode = $('a3All').value;
     const sel = p.el && p.el.querySelector('.mode');
     if (sel) sel.value = p.mode;
@@ -649,6 +705,7 @@ async function build() {
     const out = await PDFDocument.create();
     const embs = new Map();
     const emb = async p => {
+      if (p.blank) return null;                     // 白紙は何も描かない
       const key = p.fi + ':' + p.idx;
       if (!embs.has(key)) {
         // 中身（Contents）のないページは埋め込めない（保存のときに止まる）ので、白紙として何も描かない
@@ -733,7 +790,9 @@ async function renderPreview(bytes, seq, sheets) {
     box.appendChild(c);
     const cap = document.createElement('div');
     const s = sheets[i - 1];
-    const what = s.type === 'full' ? 'A3 原寸' : s.right ? '2 アップ' : '2 アップ（右は白紙）';
+    const what = s.type === 'full' ? (s.page.blank ? 'A3 の白紙' : 'A3 原寸')
+      : !s.right || s.right.blank ? (s.left.blank ? '白紙' : '2 アップ（右は白紙）')
+      : s.left.blank ? '2 アップ（左は白紙）' : '2 アップ';
     cap.textContent = `${i} 枚目${fmt ? '（' + fmt.replace(/#/g, String(start + i - 1)) + '）' : ''}・${what}${s.label ? '・資料名あり' : ''}`;
     cell.append(box, cap);
     grid.appendChild(cell);

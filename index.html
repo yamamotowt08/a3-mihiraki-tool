@@ -114,6 +114,13 @@
   .pg .where { color: var(--accent); font-size: 12px; }
   .pg select { font-size: 13px; padding: 4px 6px; margin-top: 0; }
   .pg label.check { font-size: 12px; padding: 0; gap: 5px; color: var(--muted); align-self: flex-start; }
+  .pnrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: -2px 0 12px; padding: 8px 12px;
+    background: var(--sheet-bg); border-radius: 8px; }
+  .pnrow label.check { padding: 0; align-self: center; }
+  .pnrow .pnmode { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text); max-width: 100%; }
+  .pnrow .pnmode[hidden] { display: none; }
+  .pnrow .pnmode span { flex: none; white-space: nowrap; }
+  .pnrow select { width: auto; min-width: 0; max-width: 100%; margin-top: 0; padding: 5px 8px; font-size: 14px; }
   .pg.blank { border-style: dashed; }
   .blankpg { height: 112px; aspect-ratio: 210 / 297; max-width: 100%; background: #fff; color: #9aa1ad;
     box-shadow: 0 1px 3px rgba(0,0,0,.25); display: flex; align-items: center; justify-content: center; font-size: 13px; }
@@ -223,6 +230,14 @@
 
   <section class="panel">
     <p class="step">3. ページの確認 <span class="muted">— A3 のページは色付き。ページごとに扱いを変えたり、「白紙を 前に・後ろに」で白紙を差し込んだりできます</span></p>
+    <div class="pnrow">
+      <label class="check"><input type="checkbox" id="numBlank" checked> 空白ページ（白紙だけの A3）にもページ番号を振る</label>
+      <label id="numBlankModeBox" class="pnmode" hidden><span>空白ページは</span><select id="numBlankMode">
+        <option value="skip">数えない（番号を詰める）</option>
+        <option value="keep">数える（番号だけ消す）</option>
+      </select></label>
+      <span id="blankInfo" class="muted"></span>
+    </div>
     <div id="pages" class="pages"><div class="empty">PDF を入れると、ここにページが並びます。</div></div>
   </section>
 
@@ -371,7 +386,8 @@ async function addFiles(list) {
         const rot = (((pg.getRotation().angle || 0) % 360) + 360) % 360;
         const [ew, eh] = rot % 180 ? [h0, w0] : [w0, h0];
         const large = Math.max(ew, eh) / MM > LARGE_MM;
-        pages.push({ fi, idx, w0, h0, rot, ew, eh, large, mode: $('a3All').value, newSheet: idx === 0, skip: false });
+        const empty = !pg.node.Contents();          // 中身のない（真っ白な）ページ
+        pages.push({ fi, idx, w0, h0, rot, ew, eh, large, empty, mode: $('a3All').value, newSheet: idx === 0, skip: false });
       });
     } catch (err) {
       console.error(err);
@@ -412,7 +428,7 @@ function renderFiles() {
       renderFiles();
       $('pages').innerHTML = '<div class="empty">PDF を入れると、ここにページが並びます。</div>';
       $('sheets').innerHTML = '<div class="empty">PDF を入れると、ここに A3 の仕上がりが並びます。</div>';
-      $('outInfo').textContent = ''; $('save').disabled = true; setStatus(''); showLabelWhere(0);
+      $('outInfo').textContent = ''; $('save').disabled = true; setStatus(''); updateWhere();
     };
     box.appendChild(b);
   }
@@ -564,7 +580,24 @@ function updateWhere() {
   });
   for (const p of pages) if (p.el) p.el.querySelector('.where').textContent = '→ ' + p.where;
   showLabelWhere(sheets.length);
+  const nb = sheets.filter(isBlankSheet).length;
+  $('blankInfo').textContent = !sheets.length ? '' : nb ? `いまは空白ページが ${nb} 枚あります` : 'いまは空白ページはありません';
   return sheets;
+}
+
+/* ---------- 空白ページのページ番号 ---------- */
+// 白紙（差し込んだ白紙・中身のないページ）だけでできた用紙を「空白ページ」とする
+const isBlankPage = p => p.blank || p.empty;
+const isBlankSheet = s => s.type === 'full' ? isBlankPage(s.page) : isBlankPage(s.left) && (!s.right || isBlankPage(s.right));
+
+// 用紙ごとのページ番号（番号を振らない用紙は null）
+function sheetNumbers(sheets) {
+  const all = $('numBlank').checked, keep = $('numBlankMode').value === 'keep';
+  let n = Math.round(num('numStart', 1));
+  return sheets.map(s => {
+    if (!all && isBlankSheet(s)) { if (keep) n++; return null; }
+    return n++;
+  });
 }
 
 /* ---------- 資料名を入れるページ ---------- */
@@ -634,6 +667,8 @@ document.querySelectorAll('.grid input, .grid select').forEach(el => {
   if (el.id === 'a3All') return;
   el.addEventListener('input', () => scheduleBuild());
 });
+$('numBlank').onchange = () => { $('numBlankModeBox').hidden = $('numBlank').checked; scheduleBuild(); };
+$('numBlankMode').onchange = () => scheduleBuild();
 document.querySelectorAll('.pickrow .quick').forEach(b => b.onclick = () => {
   $('labelSheets').value = b.dataset.v;
   scheduleBuild();
@@ -717,7 +752,7 @@ async function build() {
     const gap = Math.max(0, num('gap', 0)) * MM;
     const rotate = $('rotate').checked;
     const fontKey = $('font').value;
-    const fmt = $('numFmt').value, start = Math.round(num('numStart', 1));
+    const fmt = $('numFmt').value, nums = sheetNumbers(sheets);
     const numSize = num('numSize', 10.5), mv = num('numMarginV', 5) * MM, mh = num('numMarginH', 5) * MM;
     const pos = $('numPos').value, align = $('numAlign').value;
     const label = $('label').value.trim();
@@ -743,8 +778,9 @@ async function build() {
           place(pg, await emb(s.right), s.right, half + gap, gap, half - 2 * gap, A3[1] - 2 * gap, { allowRotate: rotate, allowUp: false });
       }
       const { width: W, height: H } = pg.getSize();
-      if (fmt.trim()) {
-        const t = textImage(fmt.replace(/#/g, String(start + i)), numSize, fontKey, false);
+      s.no = nums[i];
+      if (fmt.trim() && s.no !== null) {
+        const t = textImage(fmt.replace(/#/g, String(s.no)), numSize, fontKey, false);
         const img = await out.embedPng(t.url);
         const x = align === 'left' ? mh : align === 'right' ? W - mh - t.w : (W - t.w) / 2;
         const y = pos === 'top' ? H - mv - t.h : mv;
@@ -776,7 +812,7 @@ async function renderPreview(bytes, seq, sheets) {
   const js = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
   const grid = document.createElement('div');
   grid.className = 'sheets';
-  const fmt = $('numFmt').value.trim(), start = Math.round(num('numStart', 1));
+  const fmt = $('numFmt').value.trim();
   for (let i = 1; i <= js.numPages; i++) {
     if (seq !== buildSeq) { js.destroy(); return; }
     const pg = await js.getPage(i);
@@ -790,10 +826,12 @@ async function renderPreview(bytes, seq, sheets) {
     box.appendChild(c);
     const cap = document.createElement('div');
     const s = sheets[i - 1];
-    const what = s.type === 'full' ? (s.page.blank ? 'A3 の白紙' : 'A3 原寸')
-      : !s.right || s.right.blank ? (s.left.blank ? '白紙' : '2 アップ（右は白紙）')
-      : s.left.blank ? '2 アップ（左は白紙）' : '2 アップ';
-    cap.textContent = `${i} 枚目${fmt ? '（' + fmt.replace(/#/g, String(start + i - 1)) + '）' : ''}・${what}${s.label ? '・資料名あり' : ''}`;
+    const what = s.type === 'full' ? (isBlankPage(s.page) ? 'A3 の白紙' : 'A3 原寸')
+      : isBlankSheet(s) ? '白紙'
+      : !s.right || isBlankPage(s.right) ? '2 アップ（右は白紙）'
+      : isBlankPage(s.left) ? '2 アップ（左は白紙）' : '2 アップ';
+    const no = !fmt ? '' : s.no === null ? '（番号なし）' : '（' + fmt.replace(/#/g, String(s.no)) + '）';
+    cap.textContent = `${i} 枚目${no}・${what}${s.label ? '・資料名あり' : ''}`;
     cell.append(box, cap);
     grid.appendChild(cell);
     if (i === 1 || i % 8 === 0) $('sheets').replaceWith(Object.assign(grid, { id: 'sheets' }));

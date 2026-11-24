@@ -68,6 +68,12 @@
   input[type=text], input[type=number], select {
     width: 100%; margin-top: 4px; padding: 8px 10px; font: inherit; font-size: 15px;
     color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+  .pickrow { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 10px; }
+  .pickrow label { flex: 0 1 330px; }
+  .pickrow button { padding-top: 9px; padding-bottom: 9px; }
+  .pickrow .res { font-size: 14px; color: var(--accent); padding-bottom: 9px; }
+  .pickrow .res.err { color: var(--err); }
+  .pickrow .res.off { color: var(--muted); }
   label.check { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 14px; align-self: end; padding-bottom: 8px; }
   button { font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line);
     background: var(--panel); color: var(--text); cursor: pointer; }
@@ -143,7 +149,7 @@
     <ul class="auto">
       <li>A4 は 2 ページずつ A3 横に並べます（白紙を入れる必要はありません）</li>
       <li>A3 のページは縮小しないで、そのまま 1 枚にします</li>
-      <li>ページ番号（2-1、2-2…）と、1 枚目右上の資料名も入れます</li>
+      <li>ページ番号（2-1、2-2…）と、右上の資料名も入れます（入れるページは選べます）</li>
     </ul>
   </header>
 
@@ -175,8 +181,14 @@
   <section class="panel">
     <p class="step">2. 設定</p>
     <div class="grid">
-      <div class="group">1 枚目右上の資料名（枠付き）</div>
+      <div class="group">右上の資料名（枠付き）</div>
       <label class="wide">資料名（空欄なら付けません）<input id="label" type="text" placeholder="資料2　点検計画の更新"></label>
+      <div class="wide pickrow">
+        <label>入れるページ（仕上がりの何枚目か。例：1,3,5-7）<input id="labelSheets" type="text" value="1" placeholder="1"></label>
+        <button type="button" class="quick" data-v="1">1 枚目だけ</button>
+        <button type="button" class="quick" data-v="全部">全部</button>
+        <span id="labelWhere" class="res"></span>
+      </div>
       <label>文字の大きさ (pt)<input id="labelSize" type="number" value="12" step="0.5" min="6"></label>
       <label>上の余白 (mm)<input id="labelTop" type="number" value="9" step="0.5" min="0"></label>
       <label>右の余白 (mm)<input id="labelRight" type="number" value="8" step="0.5" min="0"></label>
@@ -392,7 +404,7 @@ function renderFiles() {
       renderFiles();
       $('pages').innerHTML = '<div class="empty">PDF を入れると、ここにページが並びます。</div>';
       $('sheets').innerHTML = '<div class="empty">PDF を入れると、ここに A3 の仕上がりが並びます。</div>';
-      $('outInfo').textContent = ''; $('save').disabled = true; setStatus('');
+      $('outInfo').textContent = ''; $('save').disabled = true; setStatus(''); showLabelWhere(0);
     };
     box.appendChild(b);
   }
@@ -496,7 +508,55 @@ function updateWhere() {
     }
   });
   for (const p of pages) if (p.el) p.el.querySelector('.where').textContent = '→ ' + p.where;
+  showLabelWhere(sheets.length);
   return sheets;
+}
+
+/* ---------- 資料名を入れるページ ---------- */
+// 「1,3,5-7」「全部」などを読む。「5-」は 5 枚目から最後まで。空欄は 1 枚目
+function parseSheetList(text) {
+  const t = text.normalize('NFKC').replace(/\s+/g, '').replace(/枚目?|ページ目?/g, '');
+  if (!t) return { parts: [[1, 1]], bad: [] };
+  if (/^(全部|全て|すべて|全|all)$/i.test(t)) return { parts: [[1, Infinity]], bad: [] };
+  const parts = [], bad = [];
+  for (const tok of t.split(/[,、。・;]+/).filter(Boolean)) {
+    const m = tok.match(/^(\d+)(?:([-~〜ー―‐−])(\d*))?$/);
+    if (!m || +m[1] === 0) { bad.push(tok); continue; }
+    const a = +m[1], b = m[2] ? (m[3] ? +m[3] : Infinity) : a;
+    parts.push([Math.min(a, b), Math.max(a, b)]);
+  }
+  return { parts, bad };
+}
+const labelOn = (list, n) => list.parts.some(([a, b]) => n >= a && n <= b);
+
+// [1,2,3,5] → 「1〜3・5」
+function rangesText(nums) {
+  const out = [];
+  for (let i = 0; i < nums.length; i++) {
+    let j = i;
+    while (j + 1 < nums.length && nums[j + 1] === nums[j] + 1) j++;
+    out.push(j > i ? `${nums[i]}〜${nums[j]}` : `${nums[i]}`);
+    i = j;
+  }
+  return out.join('・');
+}
+
+function showLabelWhere(total) {
+  const el = $('labelWhere');
+  const list = parseSheetList($('labelSheets').value);
+  el.className = 'res';
+  if (list.bad.length) {
+    el.classList.add('err');
+    el.textContent = `読めない書き方があります：${list.bad.join('、')}（数字と , - で書いてください）`;
+    return;
+  }
+  if (!total) { el.textContent = ''; return; }        // まだファイルが入っていない
+  if (!$('label').value.trim()) { el.classList.add('off'); el.textContent = '資料名が空欄なので、どのページにも付けません'; return; }
+  const nums = [];
+  for (let n = 1; n <= total; n++) if (labelOn(list, n)) nums.push(n);
+  if (!nums.length) { el.classList.add('err'); el.textContent = `仕上がりは ${total} 枚なので、どのページにも入りません`; return; }
+  el.textContent = nums.length === total && total > 1
+    ? `→ 全部（${total} 枚）に入れます` : `→ ${rangesText(nums)} 枚目に入れます（全 ${total} 枚）`;
 }
 
 function statusText() {
@@ -517,6 +577,10 @@ function scheduleBuild(delay = 450) {
 document.querySelectorAll('.grid input, .grid select').forEach(el => {
   if (el.id === 'a3All') return;
   el.addEventListener('input', () => scheduleBuild());
+});
+document.querySelectorAll('.pickrow .quick').forEach(b => b.onclick = () => {
+  $('labelSheets').value = b.dataset.v;
+  scheduleBuild();
 });
 $('a3All').onchange = () => {
   for (const p of pages) if (p.large) {
@@ -600,6 +664,12 @@ async function build() {
     const numSize = num('numSize', 10.5), mv = num('numMarginV', 5) * MM, mh = num('numMarginH', 5) * MM;
     const pos = $('numPos').value, align = $('numAlign').value;
     const label = $('label').value.trim();
+    const labelList = parseSheetList($('labelSheets').value);
+    let labelImg = null, labelT = null;               // 資料名の画像は 1 回だけ作って、どのページにも使い回す
+    if (label) {
+      labelT = textImage(label, num('labelSize', 12), fontKey, true);
+      labelImg = await out.embedPng(labelT.url);
+    }
 
     for (const [i, s] of sheets.entries()) {
       let pg;
@@ -623,10 +693,10 @@ async function build() {
         const y = pos === 'top' ? H - mv - t.h : mv;
         pg.drawImage(img, { x, y, width: t.w, height: t.h });
       }
-      if (i === 0 && label) {
-        const t = textImage(label, num('labelSize', 12), fontKey, true);
-        const img = await out.embedPng(t.url);
-        pg.drawImage(img, { x: W - num('labelRight', 8) * MM - t.w, y: H - num('labelTop', 9) * MM - t.h, width: t.w, height: t.h });
+      s.label = !!labelImg && labelOn(labelList, i + 1);
+      if (s.label) {
+        const t = labelT;
+        pg.drawImage(labelImg, { x: W - num('labelRight', 8) * MM - t.w, y: H - num('labelTop', 9) * MM - t.h, width: t.w, height: t.h });
       }
       if (seq !== buildSeq) return null;
     }
@@ -664,7 +734,7 @@ async function renderPreview(bytes, seq, sheets) {
     const cap = document.createElement('div');
     const s = sheets[i - 1];
     const what = s.type === 'full' ? 'A3 原寸' : s.right ? '2 アップ' : '2 アップ（右は白紙）';
-    cap.textContent = `${i} 枚目${fmt ? '（' + fmt.replace(/#/g, String(start + i - 1)) + '）' : ''}・${what}`;
+    cap.textContent = `${i} 枚目${fmt ? '（' + fmt.replace(/#/g, String(start + i - 1)) + '）' : ''}・${what}${s.label ? '・資料名あり' : ''}`;
     cell.append(box, cap);
     grid.appendChild(cell);
     if (i === 1 || i % 8 === 0) $('sheets').replaceWith(Object.assign(grid, { id: 'sheets' }));
